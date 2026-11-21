@@ -56,23 +56,33 @@ jobs:
       - name: Check disk (before)
         run: df -h / | tail -1
 
-      - name: Sync OrangeFox sources (manifest, self-managed)
+      - name: Sync OrangeFox sources (manifest, self-managed, debug)
         run: |
           set -eo pipefail
           export GIT_TERMINAL_PROMPT=0
+          export GIT_HTTP_LOW_SPEED_LIMIT=1000
+          export GIT_HTTP_LOW_SPEED_TIME=120
+          echo "== host info =="
+          nproc; free -h | head -3; ulimit -a | grep -E "files|memory|processes"
           mkdir -p "$HOME/ofox"
           cd "$HOME/ofox"
           echo "== repo init =="
           repo init --depth=1 -u https://gitlab.com/OrangeFox/Manifest.git -b fox_16.0 \
             || { echo "INIT_FAIL"; exit 1; }
-          echo "== repo sync (attempts) =="
+          echo "== repo sync (attempts with heartbeat) =="
           ok=0
           for i in 1 2 3; do
             echo "SYNC_ATTEMPT=$i $(date -u +%FT%TZ)"
+            # heartbeat every 60s so the run stays alive and visible
+            ( while true; do sleep 60; date -u +"HEARTBEAT %FT%TZ"; done ) &
+            HB=$!
             if repo sync -c -j4 --no-clone-bundle --no-tags; then
+              kill $HB 2>/dev/null || true
               echo "SYNC_OK"; ok=1; break
             fi
+            kill $HB 2>/dev/null || true
             echo "SYNC_ATTEMPT_FAIL=$i"
+            free -h | head -3
             sleep 15
           done
           [ "$ok" = "1" ] || { echo "SYNC_ALL_FAIL"; exit 1; }
