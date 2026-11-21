@@ -2,6 +2,9 @@ name: Build OrangeFox (community) for astonc
 
 on:
   workflow_dispatch:
+  # TEMPORARY: push trigger to bootstrap runs while dispatch API misbehaves.
+  push:
+    branches: [master]
 
 concurrency:
   group: orangefox-aston
