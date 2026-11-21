@@ -42,6 +42,16 @@ jobs:
           sudo mkswap /mnt/swapfile
           sudo swapon /mnt/swapfile
 
+      - name: Install repo tool
+        run: |
+          mkdir -p "$HOME/bin"
+          curl -sS https://storage.googleapis.com/git-repo-downloads/repo -o "$HOME/bin/repo"
+          chmod a+x "$HOME/bin/repo"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+          git config --global user.name "CI"
+          git config --global user.email "ci@localhost"
+          git lfs install
+
       - name: Check disk (before)
         run: df -h / | tail -1
 
