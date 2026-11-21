@@ -79,6 +79,26 @@ jobs:
       - name: Check disk (after sync)
         run: df -h / | tail -1
 
+      - name: Download and stage proprietary blobs (private release)
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          set -e
+          sudo apt-get install -y -qq erofs-utils
+          mkdir -p "$HOME/blobs"
+          cd "$HOME/blobs"
+          for img in vendor odm; do
+            curl -sS -L -H "Authorization: Bearer ${GH_TOKEN}" \
+              -o "$img.img" \
+              "https://github.com/Kiberbunny/orangefox-aston-blobs/releases/download/blobs-v1/$img.img"
+            mkdir -p "${img}_out"
+            fsck.erofs --extract="${img}_out" "$img.img"
+          done
+          python3 "$GITHUB_WORKSPACE/scripts/stage_blobs.py" \
+            --vendor-dir "$HOME/blobs/vendor_out" \
+            --odm-dir "$HOME/blobs/odm_out" \
+            --tree "$HOME/ofox/device/oneplus/astonc"
+
       - name: Build recovery
         run: |
           cd "$HOME/ofox"
