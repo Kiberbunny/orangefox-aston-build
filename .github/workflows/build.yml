@@ -65,9 +65,6 @@ jobs:
           echo "== repo init =="
           repo init --depth=1 -u https://gitlab.com/OrangeFox/Manifest.git -b fox_16.0 \
             || { echo "INIT_FAIL"; exit 1; }
-          echo "== inject local manifest =="
-          mkdir -p .repo/local_manifests
-          cp "$GITHUB_WORKSPACE/roomservice.xml" .repo/local_manifests/roomservice.xml
           echo "== repo sync (attempts) =="
           ok=0
           for i in 1 2 3; do
