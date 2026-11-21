@@ -90,11 +90,43 @@ jobs:
           lunch twrp_$DEVICE-eng
           mka -j${J_VAL} $TARGET
 
-      - name: Upload recovery.img
+      - name: Verify recovery artifact (static)
+        run: |
+          set -e
+          IMG="$HOME/ofox/out/target/product/$DEVICE/recovery.img"
+          echo "== info =="
+          ls -la "$IMG"
+          file "$IMG"
+          python3 - "$IMG" <<'PY'
+import sys, struct
+p = sys.argv[1]
+data = open(p, 'rb').read()
+assert data[:8] == b'ANDROID!', 'NOT an Android boot image'
+magic = data[:8]
+(kernel_size, kernel_addr, ramdisk_size, ramdisk_addr,
+ second_size, second_addr, tags_addr,
+ page_size, header_version, os_version,
+ name, cmdline) = struct.unpack('<10I16s512s', data[8:8+40+16+512])
+print("magic:", magic.decode())
+print("header_version:", header_version)
+print("page_size:", page_size)
+print("kernel_size:", kernel_size, "(expect 0 for NoKernel recovery)")
+print("ramdisk_size:", ramdisk_size)
+print("cmdline:", cmdline.split(b'\x00')[0].decode(errors='replace')[:80])
+ram_start = page_size * ((8+40+16+512 + page_size - 1) // page_size)
+ram = data[ram_start:ram_start + ramdisk_size]
+print("ramdisk lz4:", ram[:4] == b'\x04\x22\x4d\x18')
+for needle in (b'orangefox', b'twrp', b'recovery', b'init'):
+    print(f"contains {needle.decode()!r}:", needle.lower() in data.lower())
+PY
+          echo "STATIC_VERIFY_OK" | tee /tmp/verification.txt
+
+      - name: Upload recovery.img + verification report
         uses: actions/upload-artifact@v4
         with:
           name: orangefox-${{ env.DEVICE }}-run-${{ github.run_number }}
           path: |
             ${{ runner.home }}/ofox/out/target/product/${{ env.DEVICE }}/recovery.img
+            /tmp/verification.txt
           if-no-files-found: error
           retention-days: 14
