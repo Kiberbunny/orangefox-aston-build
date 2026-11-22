@@ -149,19 +149,7 @@ jobs:
               "https://api.github.com/repos/Kiberbunny/orangefox-aston-blobs/releases/assets/$AID"
             ls -la "$img.img"
             file "$img.img"
-            # sanity: must be > 1 MB and contain EROFS magic at 1024
-            python3 - "$img.img" <<'PY'
-import sys
-p = sys.argv[1]
-import os
-if os.path.getsize(p) < 1_000_000:
-    print(f"FAIL: {p} too small"); sys.exit(1)
-with open(p, 'rb') as f:
-    f.seek(1024)
-    if f.read(4) != b'\xe0\xf5\xe1':
-        print(f"FAIL: {p} no EROFS magic at 1024"); sys.exit(1)
-print(f"OK: {p} looks like EROFS")
-PY
+            python3 "$GITHUB_WORKSPACE/scripts/verify_erofs.py" "$img.img"
             mkdir -p "${img}_out"
             fsck.erofs --extract="${img}_out" "$img.img"
           done
