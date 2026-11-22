@@ -209,14 +209,13 @@ jobs:
             --odm-dir "$HOME/blobs/odm_out" \
             --tree "$HOME/ofox/device/oneplus/astonc"
 
-      - name: Remove test trees (unrecognized csuite_test module types)
+      - name: Remove csuite_test trees only (targeted)
         run: |
           cd "$HOME/ofox"
+          # ONLY the two trees that use unrecognized csuite_test module type.
+          # Do NOT wipe other tests dirs: system/tools/aidl/tests etc. are needed.
           rm -rf frameworks/base/libs/WindowManager/Shell/tests art/test 2>/dev/null || true
-          # also clear other test dirs that may use csuite_test
-          find frameworks art system hardware packages -type d \
-            \( -name tests -o -name test \) -prune -exec rm -rf {} + 2>/dev/null || true
-          echo "tests removed"
+          echo "targeted tests removed"
           df -h / | tail -1
 
       - name: Clone missing AOSP kernel/configs (soong rules)
