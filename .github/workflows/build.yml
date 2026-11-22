@@ -201,6 +201,16 @@ jobs:
             --odm-dir "$HOME/blobs/odm_out" \
             --tree "$HOME/ofox/device/oneplus/astonc"
 
+      - name: Clone missing AOSP kernel/configs (soong rules)
+        run: |
+          cd "$HOME/ofox"
+          if [ ! -d kernel/configs ]; then
+            git clone --depth=1 https://android.googlesource.com/kernel/configs kernel/configs
+          else
+            echo "kernel/configs exists"
+          fi
+          ls -d kernel/configs
+
       - name: Patch recovery sources (AID_MEDIA_RW fallback for Android 16+)
         run: |
           python3 "$GITHUB_WORKSPACE/scripts/patch_aid_media.py" "$HOME/ofox/bootable/recovery"
