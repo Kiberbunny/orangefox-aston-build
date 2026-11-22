@@ -23,3 +23,5 @@
 - Перейти на Cirrus CI (бесплатно, 8 CPU/20GB): форк `OrangeFox-CI`, правка
   `config.sh`, запуск через cirrus-ci.com.
 - Либо self-hosted x86_64 VPS.
+
+<!-- bump -->
