@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """Stage proprietary blobs (from extracted vendor/odm images) into the
-OrangeFox device tree as configured in config/*.json of the device tree."""
+OrangeFox device tree as configured in config/*.json of the device tree.
+
+Source paths in the configs may start with either "vendor/" or "/vendor/"
+(and similarly for "odm/"). The actual partition placement differs between
+ROMs (e.g. touch firmware may live in odm on some builds), so we fall back
+to a filename search across both extracted roots.
+"""
 import argparse
 import json
 import os
@@ -30,8 +36,36 @@ def load_configs(tree):
     return out
 
 
+def split_partition(src):
+    """Return (partition, relative_path) for a source path."""
+    for prefix in ("/vendor/", "vendor/"):
+        if src.startswith(prefix):
+            return "vendor", src[len(prefix):]
+    for prefix in ("/odm/", "odm/"):
+        if src.startswith(prefix):
+            return "odm", src[len(prefix):]
+    return None, src
+
+
+def find_in_roots(rel, roots):
+    """Try direct path in the hinted root, then filename search everywhere."""
+    hint = roots.get(rel[0])
+    if hint:
+        direct = os.path.join(hint, rel[1])
+        if os.path.exists(direct):
+            return direct
+    # filename fallback across both roots
+    fname = os.path.basename(rel[1])
+    for base in roots.values():
+        for dirpath, _dirs, files in os.walk(base):
+            if fname in files:
+                return os.path.join(dirpath, fname)
+    return None
+
+
 def main():
     args = parse_args()
+    roots = {"vendor": (args.vendor_dir, True), "odm": (args.odm_dir, True)}
     assets = load_configs(args.tree)
     missing = []
     staged = 0
@@ -41,23 +75,38 @@ def main():
         mode = a.get("mode", "0644")
         if not src or not dst:
             continue
-        # source paths are absolute inside the vendor filesystem (/vendor/...)
-        rel = src[len("/vendor/"):] if src.startswith("/vendor/") else src
-        base = args.vendor_dir
-        s = os.path.join(base, rel)
-        if not os.path.exists(s):
+        part, rel = split_partition(src)
+        # roots dict keyed by partition with (dir, enabled) tuples
+        root_dir = roots.get(part, (None, True))[0]
+        s = None
+        if root_dir:
+            direct = os.path.join(root_dir, rel)
+            if os.path.exists(direct):
+                s = direct
+        if s is None:
+            # fallback: search both roots by filename
+            fname = os.path.basename(rel)
+            for base in (args.vendor_dir, args.odm_dir):
+                hit = None
+                for dirpath, _dirs, files in os.walk(base):
+                    if fname in files:
+                        hit = os.path.join(dirpath, fname)
+                        break
+                if hit:
+                    s = hit
+                    break
+        if s is None:
             missing.append(src)
             continue
-        d = os.path.join(args.tree, "recovery", "root", dst)
+        d = os.path.join(args.tree, "recovery", "root", dst.lstrip("/"))
         os.makedirs(os.path.dirname(d), exist_ok=True)
         shutil.copy2(s, d)
         os.chmod(d, int(mode, 8))
         staged += 1
-        print(f"[+] {dst} ({mode})")
+        print(f"[+] {dst} ({mode}) <- {os.path.relpath(s, args.vendor_dir)}")
     print(f"\nstaged: {staged}, missing: {len(missing)}")
     for m in missing:
         print("  MISSING:", m)
-    # soft-fail: warn but allow build attempt; set env for reporting
     if missing:
         print("WARN some blobs missing; build may still be attempted")
     return 0
