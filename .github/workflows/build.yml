@@ -209,19 +209,14 @@ jobs:
             --odm-dir "$HOME/blobs/odm_out" \
             --tree "$HOME/ofox/device/oneplus/astonc"
 
-      - name: Strip all csuite_test Android.bp (recursive, keep .mk)
+      - name: Strip only csuite_test module blocks (keep files and defaults)
         run: |
           cd "$HOME/ofox"
-          # Remove every Android.bp declaring unsupported csuite_test module type
-          # under the two known test trees. Directories and .mk files stay.
-          grep -rl "csuite_test" \
-            frameworks/base/libs/WindowManager/Shell/tests art/test \
-            --include="Android.bp" 2>/dev/null | xargs -r rm -f
-          echo "csuite_test .bp removed:"
-          grep -rl "csuite_test" \
-            frameworks/base/libs/WindowManager/Shell/tests art/test \
-            --include="Android.bp" 2>/dev/null | wc -l
-          ls art/test/Android.run-test.mk 2>/dev/null && echo "art run-test.mk present"
+          python3 "$GITHUB_WORKSPACE/scripts/strip_csuite.py" \
+            art/test \
+            frameworks/base/libs/WindowManager/Shell/tests
+          ls art/test/Android.bp >/dev/null 2>&1 && echo "art/test/Android.bp kept"
+          ls art/test/Android.run-test.mk >/dev/null 2>&1 && echo "art run-test.mk kept"
           df -h / | tail -1
 
       - name: Clone missing AOSP kernel/configs (soong rules)
