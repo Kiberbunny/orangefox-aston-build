@@ -233,11 +233,12 @@ jobs:
           BUILD_LOG="$HOME/build.log"
           # Run the heavy build output in tmpfs (RAM+swap) because the 14GB
           # runner disk cannot fit the full tree + out/.
-          sudo mount -o remount,size=24G /dev/shm || true
+          sudo mount -o remount,size=24G,nr_inodes=8000000 /dev/shm || true
           export OUT_DIR=/dev/shm/out
           mkdir -p "$OUT_DIR"
           echo "OUT_DIR=$OUT_DIR"
           df -h /dev/shm | tail -1
+          df -i /dev/shm | tail -1
           set -o pipefail
           # background resource monitor (disk/mem) while building
           ( while true; do
