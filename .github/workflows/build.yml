@@ -2,6 +2,8 @@ name: Build OrangeFox (community) for astonc
 
 on:
   workflow_dispatch:
+  push:
+    branches: [master]
 
 concurrency:
   group: orangefox-aston
