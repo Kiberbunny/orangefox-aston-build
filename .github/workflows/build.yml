@@ -231,17 +231,17 @@ jobs:
           lunch twrp_astonc-bp2a-eng || { echo "LUNCH_FAIL"; exit 1; }
           echo "== build (j=$J_VAL) =="
           BUILD_LOG="$HOME/build.log"
-          # Stop early with a clear message if disk is nearly full.
-          AVAIL=$(df --output=avail -k / | tail -1)
-          echo "available_kb=$AVAIL"
-          if [ "${AVAIL:-0}" -lt 4000000 ]; then
-            echo "FAIL: <4GB free disk before build (df=$(df -h / | tail -1))"
-            exit 1
-          fi
+          # Run the heavy build output in tmpfs (RAM+swap) because the 14GB
+          # runner disk cannot fit the full tree + out/.
+          sudo mount -o remount,size=24G /dev/shm || true
+          export OUT_DIR=/dev/shm/out
+          mkdir -p "$OUT_DIR"
+          echo "OUT_DIR=$OUT_DIR"
+          df -h /dev/shm | tail -1
           set -o pipefail
           # background resource monitor (disk/mem) while building
           ( while true; do
-              date -u +"%FT%TZ $(df -h / | tail -1 | tr -s ' ') free=$(free -h | awk '/Mem:/{print $7}')"
+              date -u +"%FT%TZ disk=$(df -h / | tail -1 | tr -s ' ') shm=$(df -h /dev/shm | tail -1 | tr -s ' ') free=$(free -h | awk '/Mem:/{print $7}')"
               sleep 30
             done ) > "$HOME/res_mon.log" 2>&1 &
           RMON=$!
@@ -253,6 +253,10 @@ jobs:
             RC=${PIPESTATUS[0]}
           fi
           kill $RMON 2>/dev/null || true
+          # copy built images from tmpfs back to disk for artifacts
+          mkdir -p "$HOME/ofox/out/target/product/$DEVICE" 2>/dev/null || true
+          cp -a "$OUT_DIR/target/product/$DEVICE/recovery.img" \
+            "$HOME/ofox/out/target/product/$DEVICE/" 2>/dev/null || true
           echo "===== RESOURCE MONITOR (tail) ====="
           tail -20 "$HOME/res_mon.log" 2>/dev/null || true
           if [ "$RC" != "0" ]; then
