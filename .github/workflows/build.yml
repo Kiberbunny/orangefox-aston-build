@@ -129,7 +129,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: sync-log-run-${{ github.run_number }}
-          path: ${{ runner.home }}/sync.log
+          path: /home/runner/sync.log
           if-no-files-found: ignore
           retention-days: 7
 
@@ -253,7 +253,7 @@ jobs:
         with:
           name: build-log-run-${{ github.run_number }}
           path: |
-            ${{ runner.home }}/build.log
+            /home/runner/build.log
             /tmp/build_final.log
           if-no-files-found: ignore
           retention-days: 7
@@ -272,7 +272,7 @@ jobs:
         with:
           name: orangefox-${{ env.DEVICE }}-run-${{ github.run_number }}
           path: |
-            ${{ runner.home }}/ofox/out/target/product/${{ env.DEVICE }}/recovery.img
+            /home/runner/ofox/out/target/product/${{ env.DEVICE }}/recovery.img
             /tmp/verification.txt
           if-no-files-found: error
           retention-days: 14
