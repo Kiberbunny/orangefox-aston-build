@@ -13,7 +13,8 @@ env:
   DEVICE: astonc
   OEM: oneplus
   TARGET: recoveryimage
-  J_VAL: "4"
+  # 2 jobs to stay under the 16GB RAM limit (4 caused OOM-killed runners).
+  J_VAL: "2"
 
 jobs:
   build:
@@ -39,9 +40,9 @@ jobs:
             libssl-dev libxml2-utils libelf-dev libncurses-dev \
             python3-mako squashfs-tools jq
 
-      - name: Add swap (best-effort)
+      - name: Add swap (best-effort, 24G)
         run: |
-          sudo fallocate -l 8G /mnt/swapfile 2>/dev/null || true
+          sudo fallocate -l 24G /mnt/swapfile 2>/dev/null || true
           sudo chmod 600 /mnt/swapfile 2>/dev/null || true
           sudo mkswap /mnt/swapfile 2>/dev/null || true
           sudo swapon /mnt/swapfile 2>/dev/null || true
@@ -208,7 +209,7 @@ jobs:
         run: |
           python3 "$GITHUB_WORKSPACE/scripts/patch_aid_media.py" "$HOME/ofox/bootable/recovery"
 
-      - name: Build recovery
+      - name: Build recovery (self-logging)
         run: |
           set -eo pipefail
           cd "$HOME/ofox"
@@ -224,14 +225,35 @@ jobs:
           source build/envsetup.sh
           echo "== lunch =="
           lunch twrp_astonc-bp2a-eng || { echo "LUNCH_FAIL"; exit 1; }
-          echo "== build =="
+          echo "== build (j=$J_VAL) =="
+          BUILD_LOG="$HOME/build.log"
           if command -v mka >/dev/null 2>&1; then
-            mka -j${J_VAL} $TARGET
+            mka -j${J_VAL} $TARGET > "$BUILD_LOG" 2>&1
+            RC=$?
           else
-            make -j${J_VAL} $TARGET
+            make -j${J_VAL} $TARGET > "$BUILD_LOG" 2>&1
+            RC=$?
+          fi
+          if [ "$RC" != "0" ]; then
+            echo "===== BUILD FAILED (RC=$RC), хвост лога ====="
+            tail -120 "$BUILD_LOG"
+            echo "===== конец ====="
+            exit "$RC"
           fi
           echo "BUILD_DONE"
+          cp "$BUILD_LOG" /tmp/build_final.log 2>/dev/null || true
           ls -la "out/target/product/$DEVICE/"*.img 2>/dev/null | head
+
+      - name: Upload build log (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-run-${{ github.run_number }}
+          path: |
+            ${{ runner.home }}/build.log
+            /tmp/build_final.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Verify recovery artifact (static)
         run: |
