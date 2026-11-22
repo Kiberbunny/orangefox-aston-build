@@ -160,7 +160,7 @@ jobs:
             file "$img.img"
             python3 "$GITHUB_WORKSPACE/scripts/verify_erofs.py" "$img.img"
             mkdir -p "${img}_out"
-            fsck.erofs --extract="${img}_out" "$img.img"
+            fsck.erofs --extract=${img}_out "$img.img"
           done
           python3 "$GITHUB_WORKSPACE/scripts/stage_blobs.py" \
             --vendor-dir "$HOME/blobs/vendor_out" \
@@ -178,9 +178,11 @@ jobs:
           export LC_ALL=C
           export BUILD_USERNAME=buildbot
           export BUILD_HOSTNAME=ci
+          # Device tree exports its own mandatory FOX_* variables.
+          source device/oneplus/astonc/vendorsetup.sh
           source build/envsetup.sh
           echo "== lunch =="
-          lunch twrp_$DEVICE-eng || { echo "LUNCH_FAIL"; exit 1; }
+          lunch twrp_astonc-bp2a-eng || { echo "LUNCH_FAIL"; exit 1; }
           echo "== build =="
           if command -v mka >/dev/null 2>&1; then
             mka -j${J_VAL} $TARGET
