@@ -12,7 +12,6 @@ concurrency:
 env:
   DEVICE: astonc
   OEM: oneplus
-  DT_LINK: "https://github.com/rkbkosp/android_device_oneplus_astonc_OrangeFox.git -b fox_16.0"
   TARGET: recoveryimage
   J_VAL: "4"
 
@@ -40,12 +39,13 @@ jobs:
             libssl-dev libxml2-utils libelf-dev libncurses-dev \
             python3-mako squashfs-tools jq
 
-      - name: Add swap
+      - name: Add swap (best-effort)
         run: |
-          sudo fallocate -l 8G /mnt/swapfile
-          sudo chmod 600 /mnt/swapfile
-          sudo mkswap /mnt/swapfile
-          sudo swapon /mnt/swapfile
+          sudo fallocate -l 8G /mnt/swapfile 2>/dev/null || true
+          sudo chmod 600 /mnt/swapfile 2>/dev/null || true
+          sudo mkswap /mnt/swapfile 2>/dev/null || true
+          sudo swapon /mnt/swapfile 2>/dev/null || true
+          free -h | head -3
 
       - name: Install repo tool
         run: |
@@ -122,6 +122,7 @@ jobs:
 
       - name: Clone device tree + theme
         run: |
+          set -e
           cd "$HOME/ofox"
           mkdir -p device/oneplus
           git clone --depth=1 -b fox_16.0 \
@@ -129,8 +130,11 @@ jobs:
             device/oneplus/astonc
           if [ ! -d bootable/recovery/gui/theme ]; then
             git clone --depth=1 https://gitlab.com/OrangeFox/misc/theme.git \
-              bootable/recovery/gui/theme || echo "theme clone failed (ignored)"
+              bootable/recovery/gui/theme
           fi
+          echo "== device tree files =="
+          ls device/oneplus/astonc | head -20
+          [ -f device/oneplus/astonc/twrp_astonc.mk ] && echo "twrp_astonc.mk OK" || echo "WARN: no twrp_astonc.mk"
 
       - name: Check disk (after sync)
         run: df -h / | tail -1
@@ -165,6 +169,7 @@ jobs:
 
       - name: Build recovery
         run: |
+          set -eo pipefail
           cd "$HOME/ofox"
           export ALLOW_MISSING_DEPENDENCIES=true
           export FOX_USE_TWRP_RECOVERY_IMAGE_BUILDER=1
@@ -174,8 +179,16 @@ jobs:
           export BUILD_USERNAME=buildbot
           export BUILD_HOSTNAME=ci
           source build/envsetup.sh
-          lunch twrp_$DEVICE-eng
-          mka -j${J_VAL} $TARGET
+          echo "== lunch =="
+          lunch twrp_$DEVICE-eng || { echo "LUNCH_FAIL"; exit 1; }
+          echo "== build =="
+          if command -v mka >/dev/null 2>&1; then
+            mka -j${J_VAL} $TARGET
+          else
+            make -j${J_VAL} $TARGET
+          fi
+          echo "BUILD_DONE"
+          ls -la "out/target/product/$DEVICE/"*.img 2>/dev/null | head
 
       - name: Verify recovery artifact (static)
         run: |
