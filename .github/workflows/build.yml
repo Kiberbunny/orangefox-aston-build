@@ -128,13 +128,23 @@ jobs:
           ls -d bootable vendor build device 2>/dev/null | head
           df -h / | tail -1
 
-      - name: Save source cache (artifact)
+      - name: Save source cache (artifact, best-effort)
         if: success()
+        continue-on-error: true
         run: |
+          set +e
+          df -h / | tail -1
           mkdir -p "$HOME/artifacts" "$HOME/.ccache"
           if [ -d "$HOME/ofox/.repo" ]; then
-            tar --use-compress-program=zstd -C "$HOME" \
+            du -sh "$HOME/ofox/.repo" "$HOME/.ccache"
+            timeout 1500 tar --use-compress-program=zstd -C "$HOME" \
               -cf "$HOME/artifacts/sources_cache.tar.zst" ofox/.repo .ccache
+            RC=$?
+            if [ "$RC" != "0" ]; then
+              echo "CACHE_SAVE_FAILED RC=$RC"
+              df -h / | tail -1
+              exit 0
+            fi
             ls -la "$HOME/artifacts"
           else
             echo "NO_REPO_TO_SAVE"
@@ -142,6 +152,7 @@ jobs:
 
       - name: Upload source cache artifact
         if: success()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: sources-cache
