@@ -116,8 +116,9 @@ jobs:
         run: |
           cd "$HOME/ofox"
           # Recovery build does not need these large trees.
+          # NOTE: do NOT remove 'kernel' — kernel/configs provides soong rules.
           for d in dalvik developers development docs test cts sdk ndk \
-                    out art kernel prebuilts/gcc prebuilts/misc/linux-x86 \
+                    out art prebuilts/gcc prebuilts/misc/linux-x86 \
                     packages/modules/Bluetooth packages/apps/Messaging; do
             rm -rf "$d" 2>/dev/null || true
           done
