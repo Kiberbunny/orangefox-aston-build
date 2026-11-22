@@ -70,6 +70,17 @@ jobs:
           sudo apt-get clean
           df -h / | tail -1
 
+      - name: Restore build cache (repo + ccache)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ runner.home }}/ofox/.repo
+            ${{ runner.home }}/.ccache
+          key: ofox-cache-fox16-${{ github.run_id }}
+          restore-keys: |
+            ofox-cache-fox16-
+            ofox-cache-
+
       - name: Sync OrangeFox sources (self-logging)
         run: |
           export GIT_TERMINAL_PROMPT=0
@@ -110,6 +121,15 @@ jobs:
           log "check dirs"
           ls -d bootable vendor build device 2>/dev/null | head
           df -h / | tail -1
+
+      - name: Save build cache (repo + ccache)
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ${{ runner.home }}/ofox/.repo
+            ${{ runner.home }}/.ccache
+          key: ofox-cache-fox16-${{ github.run_id }}
 
       - name: Upload sync log (always)
         if: always()
