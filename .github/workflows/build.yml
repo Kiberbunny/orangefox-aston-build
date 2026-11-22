@@ -135,15 +135,34 @@ jobs:
 
       - name: Clone device tree + theme
         run: |
-          set -e
+          set -eo pipefail
           cd "$HOME/ofox"
           mkdir -p device/oneplus
-          git clone --depth=1 -b fox_16.0 \
-            https://github.com/rkbkosp/android_device_oneplus_astonc_OrangeFox.git \
-            device/oneplus/astonc
+          # retry-friendly clone
+          ok=0
+          for i in 1 2 3; do
+            echo "CLONE_DEVICE_ATTEMPT=$i"
+            if git clone --depth=1 -b fox_16.0 \
+              https://github.com/rkbkosp/android_device_oneplus_astonc_OrangeFox.git \
+              device/oneplus/astonc; then
+              ok=1; break
+            fi
+            rm -rf device/oneplus/astonc
+            sleep 10
+          done
+          [ "$ok" = "1" ] || { echo "CLONE_DEVICE_FAIL"; exit 1; }
           if [ ! -d bootable/recovery/gui/theme ]; then
-            git clone --depth=1 https://gitlab.com/OrangeFox/misc/theme.git \
-              bootable/recovery/gui/theme
+            ok=0
+            for i in 1 2 3; do
+              echo "CLONE_THEME_ATTEMPT=$i"
+              if git clone --depth=1 https://gitlab.com/OrangeFox/misc/theme.git \
+                bootable/recovery/gui/theme; then
+                ok=1; break
+              fi
+              rm -rf bootable/recovery/gui/theme
+              sleep 10
+            done
+            [ "$ok" = "1" ] || { echo "CLONE_THEME_FAIL"; exit 1; }
           fi
           echo "== device tree files =="
           ls device/oneplus/astonc | head -20
@@ -162,11 +181,13 @@ jobs:
           cd "$HOME/blobs"
           for img in vendor odm; do
             echo "== resolve asset $img =="
-            AID=$(curl -sS -H "Authorization: Bearer ${GH_TOKEN}" \
+            AID=$(curl -sS --retry 5 --retry-all-errors -m 120 \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
               "https://api.github.com/repos/Kiberbunny/orangefox-aston-blobs/releases/tags/blobs-v1" \
               | python3 -c "import json,sys; d=json.load(sys.stdin); print([a['id'] for a in d.get('assets',[]) if a['name']=='${img}.img'][0])")
             echo "asset_id=$AID"
-            curl -sS -L -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/octet-stream" \
+            curl -sS -L --retry 5 --retry-all-errors -m 1800 \
+              -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/octet-stream" \
               -o "$img.img" \
               "https://api.github.com/repos/Kiberbunny/orangefox-aston-blobs/releases/assets/$AID"
             ls -la "$img.img"
@@ -202,6 +223,13 @@ jobs:
           lunch twrp_astonc-bp2a-eng || { echo "LUNCH_FAIL"; exit 1; }
           echo "== build (j=$J_VAL) =="
           BUILD_LOG="$HOME/build.log"
+          # Stop early with a clear message if disk is nearly full.
+          AVAIL=$(df --output=avail -k / | tail -1)
+          echo "available_kb=$AVAIL"
+          if [ "${AVAIL:-0}" -lt 4000000 ]; then
+            echo "FAIL: <4GB free disk before build (df=$(df -h / | tail -1))"
+            exit 1
+          fi
           if command -v mka >/dev/null 2>&1; then
             mka -j${J_VAL} $TARGET > "$BUILD_LOG" 2>&1
             RC=$?
