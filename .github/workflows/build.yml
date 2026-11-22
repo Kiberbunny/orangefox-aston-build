@@ -209,15 +209,18 @@ jobs:
             --odm-dir "$HOME/blobs/odm_out" \
             --tree "$HOME/ofox/device/oneplus/astonc"
 
-      - name: Strip csuite_test .bp only (keep dirs + Makefiles)
+      - name: Strip all csuite_test Android.bp (recursive, keep .mk)
         run: |
           cd "$HOME/ofox"
-          # Remove only the Android.bp files that declare unsupported csuite_test
-          # module type. Keep the directories and any .mk files (art/Android.mk
-          # needs art/test/Android.run-test.mk).
-          rm -f frameworks/base/libs/WindowManager/Shell/tests/Android.bp 2>/dev/null || true
-          rm -f art/test/Android.bp 2>/dev/null || true
-          echo "targeted .bp removed"
+          # Remove every Android.bp declaring unsupported csuite_test module type
+          # under the two known test trees. Directories and .mk files stay.
+          grep -rl "csuite_test" \
+            frameworks/base/libs/WindowManager/Shell/tests art/test \
+            --include="Android.bp" 2>/dev/null | xargs -r rm -f
+          echo "csuite_test .bp removed:"
+          grep -rl "csuite_test" \
+            frameworks/base/libs/WindowManager/Shell/tests art/test \
+            --include="Android.bp" 2>/dev/null | wc -l
           ls art/test/Android.run-test.mk 2>/dev/null && echo "art run-test.mk present"
           df -h / | tail -1
 
