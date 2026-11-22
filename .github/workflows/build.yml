@@ -209,13 +209,16 @@ jobs:
             --odm-dir "$HOME/blobs/odm_out" \
             --tree "$HOME/ofox/device/oneplus/astonc"
 
-      - name: Remove csuite_test trees only (targeted)
+      - name: Strip csuite_test .bp only (keep dirs + Makefiles)
         run: |
           cd "$HOME/ofox"
-          # ONLY the two trees that use unrecognized csuite_test module type.
-          # Do NOT wipe other tests dirs: system/tools/aidl/tests etc. are needed.
-          rm -rf frameworks/base/libs/WindowManager/Shell/tests art/test 2>/dev/null || true
-          echo "targeted tests removed"
+          # Remove only the Android.bp files that declare unsupported csuite_test
+          # module type. Keep the directories and any .mk files (art/Android.mk
+          # needs art/test/Android.run-test.mk).
+          rm -f frameworks/base/libs/WindowManager/Shell/tests/Android.bp 2>/dev/null || true
+          rm -f art/test/Android.bp 2>/dev/null || true
+          echo "targeted .bp removed"
+          ls art/test/Android.run-test.mk 2>/dev/null && echo "art run-test.mk present"
           df -h / | tail -1
 
       - name: Clone missing AOSP kernel/configs (soong rules)
