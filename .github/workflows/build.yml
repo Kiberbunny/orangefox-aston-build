@@ -265,13 +265,26 @@ jobs:
           cp "$BUILD_LOG" /tmp/build_final.log 2>/dev/null || true
           ls -la "out/target/product/$DEVICE/"*.img 2>/dev/null | head
 
-      - name: Upload build log (always)
+      - name: Collect diagnostics (always)
+        if: always()
+        run: |
+          echo "===== DISK ====="; df -h / | tail -1
+          echo "===== MEM ====="; free -h | head -3
+          echo "===== OUT ====="
+          ls -la "$HOME/ofox/out/target/product/$DEVICE/"*.img 2>/dev/null || echo "(нет img)"
+          echo "===== BUILD LOG (tail) ====="
+          tail -80 "$HOME/build.log" 2>/dev/null || echo "(нет build.log)"
+          echo "===== RES MON (tail) ====="
+          tail -30 "$HOME/res_mon.log" 2>/dev/null || echo "(нет res_mon.log)"
+
+      - name: Upload build log + diagnostics (always)
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: build-log-run-${{ github.run_number }}
           path: |
             /home/runner/build.log
+            /home/runner/res_mon.log
             /tmp/build_final.log
           if-no-files-found: ignore
           retention-days: 7
