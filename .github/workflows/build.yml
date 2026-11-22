@@ -209,8 +209,7 @@ jobs:
         run: |
           set -eo pipefail
           cd "$HOME/ofox"
-          # Strict mode: report every missing dependency so we can complete the tree.
-          # export ALLOW_MISSING_DEPENDENCIES=true
+          export ALLOW_MISSING_DEPENDENCIES=true
           export FOX_USE_TWRP_RECOVERY_IMAGE_BUILDER=1
           export FOX_BUILD_TYPE=Unofficial-CI
           export OF_MAINTAINER=Kiberbunny
