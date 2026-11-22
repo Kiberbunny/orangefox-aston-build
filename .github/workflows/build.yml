@@ -187,6 +187,10 @@ jobs:
             --odm-dir "$HOME/blobs/odm_out" \
             --tree "$HOME/ofox/device/oneplus/astonc"
 
+      - name: Patch recovery sources (AID_MEDIA_RW fallback for Android 16+)
+        run: |
+          python3 "$GITHUB_WORKSPACE/scripts/patch_aid_media.py" "$HOME/ofox/bootable/recovery"
+
       - name: Build recovery
         run: |
           set -eo pipefail
