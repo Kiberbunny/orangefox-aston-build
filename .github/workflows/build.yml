@@ -71,22 +71,6 @@ jobs:
           sudo apt-get clean
           df -h / | tail -1
 
-      - name: Download source cache (artifact)
-        uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: sources-cache
-          path: /tmp/cache_dl
-
-      - name: Extract source cache
-        run: |
-          if [ -f /tmp/cache_dl/sources_cache.tar.zst ]; then
-            tar --use-compress-program=zstd -C "$HOME" -xf /tmp/cache_dl/sources_cache.tar.zst
-            echo "CACHE_RESTORED"
-          else
-            echo "CACHE_NONE"
-          fi
-
       - name: Sync OrangeFox sources (self-logging)
         run: |
           export GIT_TERMINAL_PROMPT=0
@@ -127,6 +111,18 @@ jobs:
           log "check dirs"
           ls -d bootable vendor build device 2>/dev/null | head
           df -h / | tail -1
+
+      - name: Prune unneeded trees (free disk for build)
+        run: |
+          cd "$HOME/ofox"
+          # Recovery build does not need these large trees.
+          for d in dalvik developers development docs test cts sdk ndk \
+                    out art kernel prebuilts/gcc prebuilts/misc/linux-x86 \
+                    packages/modules/Bluetooth packages/apps/Messaging; do
+            rm -rf "$d" 2>/dev/null || true
+          done
+          df -h / | tail -1
+          du -sh /home/runner/ofox 2>/dev/null || true
 
       - name: Upload sync log (always)
         if: always()
@@ -253,34 +249,4 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Save source cache (artifact, end of job)
-        if: success()
-        continue-on-error: true
-        run: |
-          set +e
-          df -h / | tail -1
-          mkdir -p "$HOME/artifacts" "$HOME/.ccache"
-          if [ -d "$HOME/ofox/.repo" ]; then
-            du -sh "$HOME/ofox/.repo" "$HOME/.ccache"
-            timeout 1500 tar --use-compress-program=zstd -C "$HOME" \
-              -cf "$HOME/artifacts/sources_cache.tar.zst" ofox/.repo .ccache
-            RC=$?
-            if [ "$RC" != "0" ]; then
-              echo "CACHE_SAVE_FAILED RC=$RC"
-              df -h / | tail -1
-              exit 0
-            fi
-            ls -la "$HOME/artifacts"
-          else
-            echo "NO_REPO_TO_SAVE"
-          fi
 
-      - name: Upload source cache artifact
-        if: success()
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: sources-cache
-          path: ${{ runner.home }}/artifacts/sources_cache.tar.zst
-          if-no-files-found: warn
-          retention-days: 7
