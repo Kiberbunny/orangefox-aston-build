@@ -25,6 +25,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 480
     steps:
+      - name: Checkout build config
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
       - name: Install system dependencies
         run: |
           sudo apt-get update -qq
