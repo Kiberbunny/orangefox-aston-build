@@ -56,39 +56,55 @@ jobs:
       - name: Check disk (before)
         run: df -h / | tail -1
 
-      - name: Sync OrangeFox sources (manifest, self-managed, debug)
+      - name: Sync OrangeFox sources (self-logging)
         run: |
-          set -eo pipefail
           export GIT_TERMINAL_PROMPT=0
           export GIT_HTTP_LOW_SPEED_LIMIT=1000
           export GIT_HTTP_LOW_SPEED_TIME=120
-          echo "== host info =="
-          nproc; free -h | head -3; ulimit -a | grep -E "files|memory|processes"
+          LOG="$HOME/sync.log"
+          : > "$LOG"
+          log() { echo "[$(date -u +%FT%TZ)] $*" | tee -a "$LOG"; }
+          log "host info"; nproc; free -h | head -3
           mkdir -p "$HOME/ofox"
           cd "$HOME/ofox"
-          echo "== repo init =="
+          log "repo init"
           repo init --depth=1 -u https://gitlab.com/OrangeFox/Manifest.git -b fox_16.0 \
-            || { echo "INIT_FAIL"; exit 1; }
-          echo "== repo sync (attempts with heartbeat) =="
+            >> "$LOG" 2>&1 || { log "INIT_FAIL"; tail -50 "$LOG"; exit 1; }
           ok=0
           for i in 1 2 3; do
-            echo "SYNC_ATTEMPT=$i $(date -u +%FT%TZ)"
-            # heartbeat every 60s so the run stays alive and visible
-            ( while true; do sleep 60; date -u +"HEARTBEAT %FT%TZ"; done ) &
-            HB=$!
-            if repo sync -c -j4 --no-clone-bundle --no-tags; then
-              kill $HB 2>/dev/null || true
-              echo "SYNC_OK"; ok=1; break
-            fi
-            kill $HB 2>/dev/null || true
-            echo "SYNC_ATTEMPT_FAIL=$i"
-            free -h | head -3
+            log "SYNC_ATTEMPT=$i"
+            # run sync in background writing to LOG; take its exit code
+            repo sync -c -j4 --no-clone-bundle --no-tags >> "$LOG" 2>&1 &
+            SPID=$!
+            # heartbeat in foreground while sync runs
+            while kill -0 $SPID 2>/dev/null; do
+              sleep 60
+              log "heartbeat alive"
+            done
+            wait $SPID; RC=$?
+            log "SYNC_ATTEMPT_EXIT=$RC"
+            if [ "$RC" = "0" ]; then ok=1; break; fi
             sleep 15
           done
-          [ "$ok" = "1" ] || { echo "SYNC_ALL_FAIL"; exit 1; }
-          echo "== check =="
+          if [ "$ok" != "1" ]; then
+            log "SYNC_ALL_FAIL"
+            echo "===== TAIL OF SYNC LOG ====="
+            tail -120 "$LOG"
+            exit 1
+          fi
+          log "SYNC_OK"
+          log "check dirs"
           ls -d bootable vendor build device 2>/dev/null | head
           df -h / | tail -1
+
+      - name: Upload sync log (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sync-log-run-${{ github.run_number }}
+          path: ${{ runner.home }}/sync.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Clone device tree + theme
         run: |
