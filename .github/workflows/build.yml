@@ -56,6 +56,16 @@ jobs:
       - name: Check disk (before)
         run: df -h / | tail -1
 
+      - name: Free disk space (remove preinstalled toolchains)
+        run: |
+          sudo rm -rf /usr/share/dotnet \
+            /usr/local/lib/android \
+            /opt/hostedtoolcache \
+            /usr/local/go /usr/local/.ghcup /opt/ghc \
+            /usr/local/julia* /usr/share/swift
+          sudo apt-get clean
+          df -h / | tail -1
+
       - name: Sync OrangeFox sources (self-logging)
         run: |
           export GIT_TERMINAL_PROMPT=0
@@ -74,7 +84,7 @@ jobs:
           for i in 1 2 3; do
             log "SYNC_ATTEMPT=$i"
             # run sync in background writing to LOG; take its exit code
-            repo sync -c -j4 --no-clone-bundle --no-tags >> "$LOG" 2>&1 &
+            repo sync -c -j2 --no-clone-bundle --no-tags >> "$LOG" 2>&1 &
             SPID=$!
             # heartbeat in foreground while sync runs
             while kill -0 $SPID 2>/dev/null; do
