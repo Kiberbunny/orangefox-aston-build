@@ -130,7 +130,7 @@ jobs:
       - name: Check disk (after sync)
         run: df -h / | tail -1
 
-      - name: Download and stage proprietary blobs (private release)
+      - name: Download and stage proprietary blobs (private release, via API)
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
@@ -139,9 +139,29 @@ jobs:
           mkdir -p "$HOME/blobs"
           cd "$HOME/blobs"
           for img in vendor odm; do
-            curl -sS -L -H "Authorization: Bearer ${GH_TOKEN}" \
+            echo "== resolve asset $img =="
+            AID=$(curl -sS -H "Authorization: Bearer ${GH_TOKEN}" \
+              "https://api.github.com/repos/Kiberbunny/orangefox-aston-blobs/releases/tags/blobs-v1" \
+              | python3 -c "import json,sys; d=json.load(sys.stdin); print([a['id'] for a in d.get('assets',[]) if a['name']=='${img}.img'][0])")
+            echo "asset_id=$AID"
+            curl -sS -L -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/octet-stream" \
               -o "$img.img" \
-              "https://github.com/Kiberbunny/orangefox-aston-blobs/releases/download/blobs-v1/$img.img"
+              "https://api.github.com/repos/Kiberbunny/orangefox-aston-blobs/releases/assets/$AID"
+            ls -la "$img.img"
+            file "$img.img"
+            # sanity: must be > 1 MB and contain EROFS magic at 1024
+            python3 - "$img.img" <<'PY'
+import sys
+p = sys.argv[1]
+import os
+if os.path.getsize(p) < 1_000_000:
+    print(f"FAIL: {p} too small"); sys.exit(1)
+with open(p, 'rb') as f:
+    f.seek(1024)
+    if f.read(4) != b'\xe0\xf5\xe1':
+        print(f"FAIL: {p} no EROFS magic at 1024"); sys.exit(1)
+print(f"OK: {p} looks like EROFS")
+PY
             mkdir -p "${img}_out"
             fsck.erofs --extract="${img}_out" "$img.img"
           done
