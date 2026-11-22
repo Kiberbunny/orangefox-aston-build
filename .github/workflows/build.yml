@@ -70,16 +70,21 @@ jobs:
           sudo apt-get clean
           df -h / | tail -1
 
-      - name: Restore build cache (repo + ccache)
-        uses: actions/cache@v4
+      - name: Download source cache (artifact)
+        uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
-          path: |
-            ${{ runner.home }}/ofox/.repo
-            ${{ runner.home }}/.ccache
-          key: ofox-cache-fox16-${{ github.run_id }}
-          restore-keys: |
-            ofox-cache-fox16-
-            ofox-cache-
+          name: sources-cache
+          path: /tmp/cache_dl
+
+      - name: Extract source cache
+        run: |
+          if [ -f /tmp/cache_dl/sources_cache.tar.zst ]; then
+            tar --use-compress-program=zstd -C "$HOME" -xf /tmp/cache_dl/sources_cache.tar.zst
+            echo "CACHE_RESTORED"
+          else
+            echo "CACHE_NONE"
+          fi
 
       - name: Sync OrangeFox sources (self-logging)
         run: |
@@ -122,14 +127,26 @@ jobs:
           ls -d bootable vendor build device 2>/dev/null | head
           df -h / | tail -1
 
-      - name: Save build cache (repo + ccache)
+      - name: Save source cache (artifact)
         if: success()
-        uses: actions/cache/save@v4
+        run: |
+          mkdir -p "$HOME/artifacts" "$HOME/.ccache"
+          if [ -d "$HOME/ofox/.repo" ]; then
+            tar --use-compress-program=zstd -C "$HOME" \
+              -cf "$HOME/artifacts/sources_cache.tar.zst" ofox/.repo .ccache
+            ls -la "$HOME/artifacts"
+          else
+            echo "NO_REPO_TO_SAVE"
+          fi
+
+      - name: Upload source cache artifact
+        if: success()
+        uses: actions/upload-artifact@v4
         with:
-          path: |
-            ${{ runner.home }}/ofox/.repo
-            ${{ runner.home }}/.ccache
-          key: ofox-cache-fox16-${{ github.run_id }}
+          name: sources-cache
+          path: ${{ runner.home }}/artifacts/sources_cache.tar.zst
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Upload sync log (always)
         if: always()
