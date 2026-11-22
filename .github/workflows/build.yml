@@ -112,6 +112,16 @@ jobs:
           ls -d bootable vendor build device 2>/dev/null | head
           df -h / | tail -1
 
+      - name: Minimal safe prune (foreign device trees + unused packages)
+        run: |
+          cd "$HOME/ofox"
+          # Only trees NOT referenced by the twrp_astonc product graph.
+          rm -rf device/xiaomi device/google device/samsung device/motorola \
+                 device/sony device/asus device/oppo device/vivo device/realme \
+                 device/lenovo device/tecno device/infinix \
+                 packages/apps/Messaging packages/modules/Bluetooth 2>/dev/null || true
+          df -h / | tail -1
+
       - name: Upload sync log (always)
         if: always()
         uses: actions/upload-artifact@v4
@@ -229,6 +239,12 @@ jobs:
             exit 1
           fi
           set -o pipefail
+          # background resource monitor (disk/mem) while building
+          ( while true; do
+              date -u +"%FT%TZ $(df -h / | tail -1 | tr -s ' ') free=$(free -h | awk '/Mem:/{print $7}')"
+              sleep 30
+            done ) > "$HOME/res_mon.log" 2>&1 &
+          RMON=$!
           if command -v mka >/dev/null 2>&1; then
             mka -j${J_VAL} $TARGET 2>&1 | tee "$BUILD_LOG"
             RC=${PIPESTATUS[0]}
@@ -236,6 +252,9 @@ jobs:
             make -j${J_VAL} $TARGET 2>&1 | tee "$BUILD_LOG"
             RC=${PIPESTATUS[0]}
           fi
+          kill $RMON 2>/dev/null || true
+          echo "===== RESOURCE MONITOR (tail) ====="
+          tail -20 "$HOME/res_mon.log" 2>/dev/null || true
           if [ "$RC" != "0" ]; then
             echo "===== BUILD FAILED (RC=$RC), хвост лога ====="
             tail -120 "$BUILD_LOG"
