@@ -115,13 +115,20 @@ jobs:
       - name: Prune unneeded trees (free disk for build)
         run: |
           cd "$HOME/ofox"
-          # Recovery build does not need these large trees.
-          # NOTE: do NOT remove 'kernel' — kernel/configs provides soong rules.
-          for d in dalvik developers development docs test cts sdk ndk \
-                    out art prebuilts/gcc prebuilts/misc/linux-x86 \
+          # Remove only trees that are NOT part of the product dependency graph.
+          # Keep: kernel/configs, art, development, prebuilts/clang, vendor/twrp,
+          #       device/oneplus/astonc, device/qcom, system, external, frameworks,
+          #       hardware, bionic, libcore, libnativehelper.
+          for d in dalvik developers docs test cts sdk ndk \
                     packages/modules/Bluetooth packages/apps/Messaging; do
             rm -rf "$d" 2>/dev/null || true
           done
+          # foreign device trees (not referenced by twrp_astonc)
+          rm -rf device/xiaomi device/google device/samsung device/motorola \
+                 device/sony device/asus device/oppo device/vivo device/realme \
+                 device/lenovo device/tecno device/infinix device/oneplus/astonc-c-kernel \
+                 device/oneplus/* 2>/dev/null || true
+          mkdir -p device/oneplus/astonc
           df -h / | tail -1
           du -sh /home/runner/ofox 2>/dev/null || true
 
