@@ -258,12 +258,13 @@ jobs:
             echo "FAIL: <4GB free disk before build (df=$(df -h / | tail -1))"
             exit 1
           fi
+          set -o pipefail
           if command -v mka >/dev/null 2>&1; then
-            mka -j${J_VAL} $TARGET > "$BUILD_LOG" 2>&1
-            RC=$?
+            mka -j${J_VAL} $TARGET 2>&1 | tee "$BUILD_LOG"
+            RC=${PIPESTATUS[0]}
           else
-            make -j${J_VAL} $TARGET > "$BUILD_LOG" 2>&1
-            RC=$?
+            make -j${J_VAL} $TARGET 2>&1 | tee "$BUILD_LOG"
+            RC=${PIPESTATUS[0]}
           fi
           if [ "$RC" != "0" ]; then
             echo "===== BUILD FAILED (RC=$RC), хвост лога ====="
